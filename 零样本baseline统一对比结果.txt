@@ -1,0 +1,181 @@
+零样本 baseline 统一对比结果
+更新时间：2026-05-22
+
+一、统一口径
+
+当前先把 zero-shot baseline 限定为：
+
+1. 不训练新模型。
+2. 不使用 ManiSkill 环境真值作为输入。
+3. 输入同一批三个官方 ManiSkill + mplib 成功视频。
+4. 输出 progress / reward-like score / stage prediction。
+5. 评价时先使用 time-normalized progress proxy。
+
+注意：
+当前还没有统一的环境真值 stage_id / true_progress 标签，因此目前的 zero-shot 结果不能称为“最终准确率”，只能称为“和时间进度 proxy 的一致性”。
+
+
+二、目前本地已有可比较 zero-shot / VLM 结果
+
+1. RoboCLIP-style baseline
+   位置：RoboCLIP-style/outputs/three_task_roboclip/
+
+2. GVL-style local weak reproduction
+   位置：GVL-style VLM/outputs/three_task_gvl_local/
+   说明：不是商用 VLM/API 结果。它用 OpenCLIP 对单帧和阶段文本做匹配，并把阶段概率期望作为 progress-like score。
+
+3. TOPReward-style local weak reproduction
+   位置：TOPReward-style/outputs/three_task_topreward_local/
+   说明：不是商用 VLM/API 结果。它用 OpenCLIP 对视频前缀和“完成 / 未完成”文本做匹配，并把完成概率作为 reward-like score。
+
+4. MiMo GVL-style VLM baseline
+   位置：GVL-style VLM/outputs/three_task_mimo_gvl/
+   模型：mimo-v2.5
+   说明：商用 VLM 小样本结果。每个任务抽 6 帧，将多张 RGB 帧和阶段定义一起发给 MiMo，要求输出 JSON 格式的 stage/progress/confidence。
+
+
+三、RoboCLIP-style 结果
+
+| 任务 | Spearman vs time | Pairwise Order Acc vs time | Score Start | Score End | Delta | 最终阶段预测 |
+|---|---:|---:|---:|---:|---:|---|
+| StackCube | 0.439 | 0.678 | 0.000 | 1.000 | +1.000 | 错：预测 approach |
+| StackPyramid | -0.680 | 0.239 | 0.846 | 0.312 | -0.534 | 错：预测 observe |
+| PegInsertion | 0.893 | 0.884 | 0.000 | 1.000 | +1.000 | 部分合理：预测 insert |
+
+平均：
+Spearman vs time: 0.217
+Pairwise Order Acc vs time: 0.600
+
+结论：
+1. RoboCLIP-style 对 PegInsertion 表现最好，说明纯视觉相似度在“目标视觉变化比较明确”的任务上有一定效果。
+2. 对 StackCube 只有弱趋势，最终阶段文本判断明显失败。
+3. 对 StackPyramid 明显失败，进度相关性为负，说明多物体空间关系对 CLIP-style 视觉相似度不稳定。
+
+
+四、GVL-style local weak reproduction 结果
+
+| 任务 | Spearman vs time | Pairwise Order Acc vs time | Progress MAE vs time | Score Start | Score End | Delta | 最终阶段预测 |
+|---|---:|---:|---:|---:|---:|---:|---|
+| StackCube | -0.272 | 0.391 | 0.261 | 0.484 | 0.475 | -0.009 | 错：预测 approach |
+| StackPyramid | -0.107 | 0.435 | 0.262 | 0.470 | 0.485 | +0.015 | 错：预测 observe |
+| PegInsertion | -0.050 | 0.500 | 0.261 | 0.516 | 0.512 | -0.004 | 错：预测 approach |
+
+平均：
+Spearman vs time: -0.143
+Pairwise Order Acc vs time: 0.442
+Progress MAE vs time: 0.261
+
+结论：
+1. 单帧阶段文本匹配基本没有形成可靠进度曲线。
+2. 三个任务最终阶段都偏向早期文本，说明 OpenCLIP 阶段语义匹配对机器人操作细粒度状态不可靠。
+3. 这个结果只能代表“本地 CLIP 弱复现”的失败，不能直接推出商用 VLM / MiMo 版本失败。
+
+
+五、TOPReward-style local weak reproduction 结果
+
+| 任务 | Spearman vs time | Pairwise Order Acc vs time | Progress MAE vs time | Score Start | Score End | Delta |
+|---|---:|---:|---:|---:|---:|---:|
+| StackCube | -0.814 | 0.167 | 0.281 | 0.581 | 0.494 | -0.087 |
+| StackPyramid | -0.983 | 0.040 | 0.272 | 0.541 | 0.493 | -0.048 |
+| PegInsertion | -0.373 | 0.304 | 0.272 | 0.574 | 0.571 | -0.003 |
+
+平均：
+Spearman vs time: -0.723
+Pairwise Order Acc vs time: 0.170
+Progress MAE vs time: 0.275
+
+结论：
+1. 仅用 CLIP 的“完成 / 未完成”二分类文本提示很不稳定。
+2. StackCube 和 StackPyramid 的完成概率随时间明显下降，说明这个弱复现不适合作为可靠 progress reward。
+3. PegInsertion 的起止变化很小，也没有形成可用的过程信号。
+
+
+六、MiMo GVL-style 商用 VLM 小样本结果
+
+| 任务 | 模型 | 采样帧数 | Spearman vs time | Pairwise Order Acc vs time | Progress MAE vs time | Score Start | Score End | Delta | 最终阶段预测 | Done End |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---|---:|
+| StackCube | mimo-v2.5 | 6 | 1.000 | 1.000 | 0.002 | 0.000 | 1.000 | +1.000 | 对：release stable | 1.000 |
+| StackPyramid | mimo-v2.5 | 6 | 1.000 | 1.000 | 0.001 | 0.000 | 1.000 | +1.000 | 对：release stable | 1.000 |
+| PegInsertion | mimo-v2.5 | 6 | 1.000 | 1.000 | 0.075 | 0.000 | 0.900 | +0.900 | 部分合理：insert，未判 release stable | 0.000 |
+
+平均：
+Spearman vs time: 1.000
+Pairwise Order Acc vs time: 1.000
+Progress MAE vs time: 0.026
+
+结论：
+1. MiMo 明显强于本地 OpenCLIP 弱复现，能输出更符合任务阶段的自然语言判断。
+2. StackCube 和 StackPyramid 的 6 帧结果和 time proxy 几乎完全一致，最终 done_probability 也为 1。
+3. PegInsertion 仍然偏保守：最后一帧预测到“insert”，progress=0.9，但 done_probability=0，没有判定 release/stable。
+4. 这说明 MiMo 能做较强语义阶段判断，但在插入任务的“是否真正完成/释放稳定”上仍可能需要深度、接触或环境真值辅助。
+5. 注意：这批 MiMo 输入是按时间顺序给出的 6 帧，因此高 Spearman 不能直接等同于真实阶段准确率。后续需要 frame-level 环境真值 stage/progress 标签，或打乱帧顺序/单帧独立测试，才能更严格评价。
+
+
+七、你自己的几何/深度结果不能直接算 zero-shot baseline
+
+1. 环境真值几何 progress
+
+位置：
+stereo_depth_truth/outputs/three_task_truth_depth/
+
+| 任务 | Geometry Spearman vs time | Pairwise Order Acc | 备注 |
+|---|---:|---:|---|
+| StackCube | 0.984 | 0.959 | 很好 |
+| StackPyramid | -0.069 | 0.627 | 单一 object-goal progress 不适合多阶段堆叠 |
+| PegInsertion | 0.975 | 0.969 | 很好 |
+
+说明：
+这是 oracle / env-truth 几何信号，不是 zero-shot VLM baseline。
+它适合当作 clean upper-bound 或 physical progress diagnostic，不适合和 RoboCLIP/GVL/TOPReward/MiMo 直接混成同一种准确率。
+
+2. SGBM 双目深度误差
+
+位置：
+stereo_depth_truth/outputs/stereo_sgbm_compare/
+
+| 任务 | Dense Depth MAE | Dense Disparity MAE | Entity Depth MAE |
+|---|---:|---:|---:|
+| StackCube | 0.018 m | 0.48 px | 0.068 m |
+| StackPyramid | 0.019 m | 0.48 px | 0.053 m |
+| PegInsertion | 0.088 m | 0.66 px | 0.091 m |
+
+说明：
+这是“图像双目深度估计是否接近真值”的误差，不是 progress baseline。
+它可以用来判断后续把环境真值替换成双目深度后噪声会有多大。
+
+
+八、当前统一判断
+
+在目前本地可见结果下：
+
+1. 本地 OpenCLIP 弱复现整体不可靠，RoboCLIP-style 只在 PegInsertion 上有较好单调性。
+2. MiMo-v2.5 作为商用 VLM，小样本阶段判断明显更强，尤其 StackCube 和 StackPyramid。
+3. PegInsertion 暴露了最关键的风险：VLM 能看出“正在插入”，但未必能从 RGB 判断“是否真正插到底/释放稳定”。
+4. 这正好支持后续把语义 progress 和深度/接触物理一致性结合：VLM 负责提出语义阶段，深度/接触负责验证是否真的完成。
+5. StackPyramid 仍然提醒我们：单一 object-goal 几何 progress 对多阶段任务会失败，因此后续统一标签需要阶段化。
+
+
+九、如果后续要真正统一比较
+
+需要每个方法都输出同一张表：
+
+task_id
+frame_index 或 sample_index
+time_progress
+pred_progress
+pred_stage_id
+confidence
+
+然后统一计算：
+
+1. Progress MAE against environment-truth progress
+2. Spearman against environment-truth progress
+3. Pairwise Order Accuracy
+4. Stage Accuracy
+5. Near-miss False Positive Rate
+
+当前仍然缺：
+
+1. 三个任务统一的 frame-level environment-truth progress / stage labels。
+2. MiMo 单帧独立/打乱顺序版本，用来排除按时间顺序输入带来的指标虚高。
+3. PegInsertion 的深度/接触完成验证，用来处理 MiMo 对插入完成状态的保守或误判。

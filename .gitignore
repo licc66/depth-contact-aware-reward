@@ -1,0 +1,35 @@
+# Local secrets
+mimo apikey.txt
+.env
+*.key
+
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Large or generated experiment artifacts. Keep source code and small reports;
+# store raw media, replay files, checkpoints, and generated bundles elsewhere.
+**/outputs/
+**/raw_responses/
+**/samples/
+**/contact_sheets/
+**/previews/
+**/artifacts/
+**/logs/
+**/*.mp4
+**/*.avi
+**/*.mov
+**/*.h5
+**/*.pt
+**/*.pth
+**/*.ckpt
+**/*.safetensors
+**/*.npy
+**/*.npz
+**/*.zip
+**/*.tar
+**/*.tar.gz
+
+# Local handoff bundles and copied agent workspaces.
+handoff_to_fable5/
+handoff_from_fable5/

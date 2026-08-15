@@ -1,0 +1,129 @@
+当前三个官方 ManiSkill + mplib 任务效果
+更新时间：2026-05-21
+
+一、当前结果
+
+| 任务 | 视频 | 是否成功 | 成功 seed | 找到成功用了几次 | 成功轨迹步数 | 视频时长 | 关键环境真值 |
+|---|---|---:|---:|---:|---:|---:|---|
+| StackCube-v1 | paper_style_tasks/outputs/wsl_motionplanning/StackCube-v1/motionplanning/stackcube_wsl_mplib.mp4 | 成功 | 0 | 1/1 | 107 | 3.60s | is_cubeA_on_cubeB=True, is_cubeA_static=True |
+| StackPyramid-v1 | paper_style_tasks/outputs/wsl_motionplanning/StackPyramid-v1/motionplanning/stackpyramid_wsl_mplib.mp4 | 成功 | 2 | 3/5 | 176 | 5.90s | success=True |
+| PegInsertionSide-v1 | paper_style_tasks/outputs/wsl_motionplanning/PegInsertionSide-v1/motionplanning/peg_insertion_wsl_mplib.mp4 | 成功 | 2 | 3/10 | 178 | 5.97s | peg_head_pos_at_hole=[-0.00053, 0.00316, 0.00306]，插入 yz 误差约 4.40 mm |
+
+结论：
+1. 三个视频都能正常解码，分辨率均为 512x512，帧率均为 30 fps。
+2. 三个任务最终都成功完成。
+3. 难度从当前 motion-planning 搜索表现看：StackCube 最稳定；StackPyramid 和 PegInsertionSide 更难，都需要试到 seed=2 才得到成功轨迹。
+4. 这三个视频现在比旧 guided 视频更适合作为 baseline 数据，因为它们来自 ManiSkill 官方 Panda motion-planning + mplib，而不是直接改物体位姿。
+
+
+二、目前已有的统一评价标准
+
+当前三条任务已经可以用以下统一标准比较：
+
+1. Episode Success
+   是否最终满足 ManiSkill 环境的 success 条件。
+
+2. First-success Attempts
+   从指定 seed 开始尝试，到第一次成功用了几次。
+   这可以粗略反映任务/规划难度。
+
+3. Elapsed Steps
+   成功轨迹执行了多少仿真步。
+   这可以粗略反映轨迹长度和任务复杂度。
+
+4. Video Validity
+   mp4 是否能正常解码、是否有有效 RGB 帧。
+
+5. Source Consistency
+   三个任务都来自同一个生成方式：
+   WSL2 + ManiSkill 3.0.1 + SAPIEN 3.0.3 + official Panda motion-planning + mplib + CPU Vulkan rendering。
+
+
+三、目前还没有完全统一的评价标准
+
+目前还没有统一的“过程进度 reward / VLM 进度判断”标准。
+
+原因：
+1. 三个任务的环境真值字段不同。
+   StackCube 有 cubeA_on_cubeB、cubeA_static 等字段。
+   PegInsertion 有 peg_head_pos_at_hole。
+   StackPyramid 当前 summary 里只有 success，需要进一步从 trajectory replay 或 actor state 中提取阶段关系。
+
+2. 当前官方 motion-planning 输出保存了完整轨迹 h5 和最终成功信息，但还没有生成逐帧 stage_id / true_progress。
+
+3. 因此现在只能公平比较“是否完成任务”和“轨迹长度”，还不能直接公平比较 VLM 的过程进度判断准确率。
+
+
+四、建议接下来统一使用的过程评价标准
+
+建议把三条任务统一转成如下格式：
+
+每个采样帧或视频前缀一行：
+
+task_id
+video_path
+frame_index
+time_sec
+stage_name
+stage_id
+true_progress
+success_so_far
+near_miss_flag
+task_specific_truth
+
+推荐指标：
+
+1. Stage Accuracy
+   VLM 判断的阶段是否等于环境真值阶段。
+
+2. Progress MAE
+   abs(VLM_progress - true_progress) 的平均值。
+
+3. Spearman / Pairwise Order Accuracy
+   检查 VLM 是否能判断前后进度顺序。
+
+4. VOC / Rank Correlation
+   用于评估进度分数是否整体随时间单调变好。
+
+5. Near-miss False Positive Rate
+   特别重要。检查 VLM 是否把“看起来快成功但其实没成功”的状态误判为成功。
+
+
+五、推荐的三任务阶段定义
+
+StackCube-v1：
+0 approach cubeA
+1 grasp cubeA
+2 lift cubeA
+3 move above cubeB
+4 place cubeA on cubeB
+5 release and cubeA stable
+
+StackPyramid-v1：
+0 approach first cube / inspect layout
+1 prepare base relation
+2 grasp top cube
+3 lift top cube
+4 move top cube above base
+5 place top cube on base
+6 release and pyramid stable
+
+PegInsertionSide-v1：
+0 approach peg
+1 grasp peg
+2 lift peg
+3 transport to hole
+4 align with hole
+5 start insertion
+6 peg inserted
+7 release and stable
+
+
+六、当前建议
+
+短期：
+先用这三个官方成功视频作为干净视觉输入，做零样本 VLM progress baseline。
+
+下一步：
+从 h5 轨迹中重放或解析 actor state，为三个任务生成统一的 frame-level progress csv。
+生成后再和 VLM 输出对齐，计算 Stage Accuracy、Progress MAE、Spearman / Pairwise Order Accuracy、Near-miss False Positive Rate。

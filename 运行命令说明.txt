@@ -1,0 +1,228 @@
+运行前先进入项目根目录：
+
+PowerShell:
+Set-Location "D:\Users\User\Desktop\双目深度reward"
+
+如果你之后改了文件夹名字，只需要把上面这一行改成新的项目根目录。
+
+
+1. 验证 WSL2 ManiSkill + mplib + 渲染环境
+
+运行位置：
+paper_style_tasks/wsl_verify_maniskill.py
+
+命令：
+wsl -d Ubuntu-22.04 -- bash -lc "source paper_style_tasks/wsl_env.sh && python paper_style_tasks/wsl_verify_maniskill.py"
+
+用途：
+检查 WSL 虚拟环境、ManiSkill、SAPIEN、mplib、Vulkan CPU 渲染是否都能正常工作。
+
+
+2. 重新生成 PegInsertionSide 插入任务视频
+
+运行位置：
+paper_style_tasks/wsl_run_official_motionplanning.py
+
+命令：
+wsl -d Ubuntu-22.04 -- bash -lc "source paper_style_tasks/wsl_env.sh && python paper_style_tasks/wsl_run_official_motionplanning.py --env-id PegInsertionSide-v1 --out-dir paper_style_tasks/outputs/wsl_motionplanning --name peg_insertion_wsl_mplib --seed 0 --num-traj 1 --only-success --max-attempts 10"
+
+输出：
+paper_style_tasks/outputs/wsl_motionplanning/PegInsertionSide-v1/motionplanning/peg_insertion_wsl_mplib.mp4
+
+用途：
+用 ManiSkill 官方 Panda motion-planning + mplib 重新渲染插入任务。推荐使用这个视频，不推荐继续用旧 guided 插入视频。
+
+
+3. 重新生成 StackPyramid 堆叠金字塔任务视频
+
+运行位置：
+paper_style_tasks/wsl_run_official_motionplanning.py
+
+命令：
+wsl -d Ubuntu-22.04 -- bash -lc "source paper_style_tasks/wsl_env.sh && python paper_style_tasks/wsl_run_official_motionplanning.py --env-id StackPyramid-v1 --out-dir paper_style_tasks/outputs/wsl_motionplanning --name stackpyramid_wsl_mplib --seed 0 --num-traj 1 --only-success --max-attempts 5"
+
+输出：
+paper_style_tasks/outputs/wsl_motionplanning/StackPyramid-v1/motionplanning/stackpyramid_wsl_mplib.mp4
+
+用途：
+用官方 motion-planning 生成更可信的长任务堆叠视频。
+
+
+4. 重新生成 StackCube 基础任务视频
+
+运行位置：
+paper_style_tasks/wsl_run_official_motionplanning.py
+
+命令：
+wsl -d Ubuntu-22.04 -- bash -lc "source paper_style_tasks/wsl_env.sh && python paper_style_tasks/wsl_run_official_motionplanning.py --env-id StackCube-v1 --out-dir paper_style_tasks/outputs/wsl_motionplanning --name stackcube_wsl_mplib --seed 0 --num-traj 1 --only-success"
+
+输出：
+paper_style_tasks/outputs/wsl_motionplanning/StackCube-v1/motionplanning/stackcube_wsl_mplib.mp4
+
+用途：
+生成一个更短、更稳定的基础 stacking 视频，适合先测试 VLM 进度判断。
+
+
+5. 如果 WSL 渲染环境坏了，重建本地 Vulkan fallback
+
+运行位置：
+paper_style_tasks/wsl_local_vulkan_setup.sh
+
+命令：
+wsl -d Ubuntu-22.04 -- bash -lc "bash paper_style_tasks/wsl_local_vulkan_setup.sh"
+
+用途：
+不需要 sudo，下载并解压 Mesa/Vulkan 到 /home/jbda/vulkan_local，然后由 wsl_env.sh 自动使用。
+
+
+6. 运行 RoboCLIP-style baseline
+
+运行位置：
+RoboCLIP-style/01_run_roboclip_baseline.py
+
+命令：
+wsl -d Ubuntu-22.04 -- bash -lc "source paper_style_tasks/wsl_env.sh && python RoboCLIP-style/01_run_roboclip_baseline.py"
+
+输出：
+RoboCLIP-style/outputs/three_task_roboclip/roboclip_summary.csv
+RoboCLIP-style/outputs/three_task_roboclip/roboclip_samples.csv
+RoboCLIP-style/outputs/three_task_roboclip/roboclip_score_curves.png
+RoboCLIP-style/outputs/three_task_roboclip/stage_similarity_heatmaps.png
+
+用途：
+用 OpenAI CLIP ViT-B/32 对 StackCube、StackPyramid、PegInsertionSide 三个官方视频做 RoboCLIP-style 零样本视觉相似度 baseline。
+
+
+7. 运行固定双目视角的环境真值深度特征提取
+
+运行位置：
+stereo_depth_truth/01_extract_truth_depth_features.py
+
+命令：
+wsl -d Ubuntu-22.04 -- bash -lc "source paper_style_tasks/wsl_env.sh && python stereo_depth_truth/01_extract_truth_depth_features.py"
+
+输出：
+stereo_depth_truth/outputs/three_task_truth_depth/truth_depth_features.csv
+stereo_depth_truth/outputs/three_task_truth_depth/truth_depth_summary.csv
+stereo_depth_truth/outputs/three_task_truth_depth/truth_depth_progress_curves.png
+stereo_depth_truth/outputs/three_task_truth_depth/fixed_camera_geometry_paths.png
+
+用途：
+先用 ManiSkill 环境真值代替未来双目视觉差恢复出来的 3D 点，统一计算 tcp、object、goal 在固定相机坐标系下的深度/距离/对齐关系。
+
+
+8. 运行真实左右图像的 SGBM 视差对比
+
+运行位置：
+stereo_depth_truth/02_stereo_sgbm_compare.py
+
+命令：
+wsl -d Ubuntu-22.04 -- bash -lc "source paper_style_tasks/wsl_env.sh && python stereo_depth_truth/02_stereo_sgbm_compare.py"
+
+输出：
+stereo_depth_truth/outputs/stereo_sgbm_compare/RESULTS.txt
+stereo_depth_truth/outputs/stereo_sgbm_compare/stereo_sgbm_summary.csv
+stereo_depth_truth/outputs/stereo_sgbm_compare/stereo_sgbm_frame_metrics.csv
+stereo_depth_truth/outputs/stereo_sgbm_compare/stereo_sgbm_entity_metrics.csv
+stereo_depth_truth/outputs/stereo_sgbm_compare/stereo_sgbm_entity_summary.csv
+stereo_depth_truth/outputs/stereo_sgbm_compare/previews/*.png
+
+用途：
+用同一个固定双目视角渲染左/右 RGB 图像，使用 OpenCV StereoSGBM 从图像恢复视差，并和 ManiSkill 真值深度/视差对比误差。
+
+
+9. 运行 GVL-style 本地弱复现 baseline
+
+运行位置：
+GVL-style VLM/01_run_gvl_style_local.py
+
+命令：
+wsl -d Ubuntu-22.04 -- bash -lc "source paper_style_tasks/wsl_env.sh && python 'GVL-style VLM/01_run_gvl_style_local.py'"
+
+输出：
+GVL-style VLM/outputs/three_task_gvl_local/gvl_local_summary.csv
+GVL-style VLM/outputs/three_task_gvl_local/gvl_local_samples.csv
+GVL-style VLM/outputs/three_task_gvl_local/gvl_local_progress_curves.png
+GVL-style VLM/outputs/three_task_gvl_local/gvl_local_stage_heatmaps.png
+
+用途：
+不调用商用 API。使用 OpenCLIP 对采样视频帧和按顺序定义的阶段文本做相似度匹配，把阶段概率期望转换成 progress-like score。当前指标仍然只和 time-normalized proxy progress 比较。
+
+
+10. 运行 TOPReward-style 本地弱复现 baseline
+
+运行位置：
+TOPReward-style/01_run_topreward_style_local.py
+
+命令：
+wsl -d Ubuntu-22.04 -- bash -lc "source paper_style_tasks/wsl_env.sh && python 'TOPReward-style/01_run_topreward_style_local.py'"
+
+输出：
+TOPReward-style/outputs/three_task_topreward_local/topreward_local_summary.csv
+TOPReward-style/outputs/three_task_topreward_local/topreward_local_samples.csv
+TOPReward-style/outputs/three_task_topreward_local/topreward_local_progress_curves.png
+
+用途：
+不调用商用 API。使用 OpenCLIP 对每个视频前缀和“任务完成 / 尚未完成”两类文本提示做匹配，把完成概率作为 reward-like score。当前指标仍然只和 time-normalized proxy progress 比较。
+
+
+11. 运行 MiMo GVL-style 商用 VLM 小样本 baseline
+
+运行位置：
+GVL-style VLM/02_run_mimo_gvl_baseline.py
+
+命令：
+wsl -d Ubuntu-22.04 -- bash -lc "source paper_style_tasks/wsl_env.sh && python 'GVL-style VLM/02_run_mimo_gvl_baseline.py' --num-samples 6"
+
+默认模型：
+mimo-v2.5
+
+API key 读取顺序：
+1. MIMO_API_KEY 环境变量
+2. XIAOMI_MIMO_API_KEY 环境变量
+3. 项目根目录 mimo apikey.txt
+
+输出：
+GVL-style VLM/outputs/three_task_mimo_gvl/mimo_gvl_summary.csv
+GVL-style VLM/outputs/three_task_mimo_gvl/mimo_gvl_samples.csv
+GVL-style VLM/outputs/three_task_mimo_gvl/mimo_gvl_progress_curves.png
+GVL-style VLM/outputs/three_task_mimo_gvl/raw_responses/*.json
+
+用途：
+调用 MiMo 对每个任务的采样 RGB 帧进行阶段和 progress 判断。当前为了控制额度，默认每个任务只抽 6 帧。脚本不把 API key 写进代码或输出文件。
+
+
+12. 运行 MiMo RoboCLIP-style 复现
+
+运行位置：
+RoboCLIP-style/02_run_mimo_roboclip_style.py
+
+命令：
+wsl -d Ubuntu-22.04 -- bash -lc "source paper_style_tasks/wsl_env.sh && python 'RoboCLIP-style/02_run_mimo_roboclip_style.py' --num-samples 24 --max-tokens 8192"
+
+输出：
+RoboCLIP-style/outputs/three_task_mimo_roboclip/mimo_roboclip_summary.csv
+RoboCLIP-style/outputs/three_task_mimo_roboclip/mimo_roboclip_samples.csv
+RoboCLIP-style/outputs/three_task_mimo_roboclip/mimo_roboclip_progress_curves.png
+RoboCLIP-style/outputs/three_task_mimo_roboclip/raw_responses/*.json
+
+用途：
+使用 MiMo 复现 RoboCLIP-style 的“接近目标语义 + 接近最终成功视觉状态”进度打分。
+
+
+13. 运行 MiMo TOPReward-style 复现
+
+运行位置：
+TOPReward-style/02_run_mimo_topreward_style.py
+
+命令：
+wsl -d Ubuntu-22.04 -- bash -lc "source paper_style_tasks/wsl_env.sh && python 'TOPReward-style/02_run_mimo_topreward_style.py' --num-samples 24 --max-tokens 8192"
+
+输出：
+TOPReward-style/outputs/three_task_mimo_topreward/mimo_topreward_summary.csv
+TOPReward-style/outputs/three_task_mimo_topreward/mimo_topreward_samples.csv
+TOPReward-style/outputs/three_task_mimo_topreward/mimo_topreward_progress_curves.png
+TOPReward-style/outputs/three_task_mimo_topreward/raw_responses/*.json
+
+用途：
+使用 MiMo 复现 TOPReward-style 的“trajectory prefix 是否完成 / done probability / reward-like score”判断。

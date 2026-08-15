@@ -1,0 +1,98 @@
+Near-miss / failure 样本候选设计
+更新时间：2026-05-22
+
+目标：
+构造一批“视觉上像完成或接近完成，但环境真值/物理状态未完成”的视频，用来测试：
+1. MiMo-RoboCLIP-style
+2. MiMo-GVL-style
+3. MiMo-TOPReward-style
+
+当前先只设计样本，不生成视频。用户确认后再写/运行生成脚本。
+
+
+一、推荐第一批样本
+
+| 编号 | 任务 | 样本类型 | 构造方式 | 预期真值 | 主要考察 |
+|---|---|---|---|---|---|
+| SC-NM-01 | StackCube | cube 已在目标上方但未释放 | 截断成功轨迹到 place 阶段，末帧保持 gripper 仍接近/夹持 cube | false | VLM 是否把“看起来已经放上去”误判为完成 |
+| SC-NM-02 | StackCube | cube 横向偏一点，像堆上但不满足 on-cube | 从成功终态复制场景，手动把 cubeA 横向偏移一小段再渲染短视频 | false | 视觉相似度是否忽略几何接触/支撑关系 |
+| SC-FAIL-01 | StackCube | cube 放到桌面或 cubeB 旁边 | 成功轨迹中途截断或构造静态场景，cubeA 不在 cubeB 上 | false | 基础失败样本，检查是否能拒绝明显失败 |
+| SP-NM-01 | StackPyramid | top cube 悬在 base 上方但未放稳 | 截断成功轨迹到 place 前/放置中 | false | 阶段接近完成但接触/稳定不成立 |
+| SP-FAIL-01 | StackPyramid | 官方 solver 失败 seed=0 | 重新运行 StackPyramid-v1 seed=0，不加 --only-success，保存失败视频 | false | 真实 planner failure，避免纯人工构造 |
+| SP-FAIL-02 | StackPyramid | 官方 solver 失败 seed=1 | 重新运行 StackPyramid-v1 seed=1，不加 --only-success，保存失败视频 | false | 第二个真实 planner failure |
+| PEG-NM-01 | PegInsertion | peg 对齐孔但没插进去 | 使用官方失败 seed=0，summary 显示 peg_head_pos_at_hole x 约 -0.104m，yz 误差小 | false | 经典“视觉对齐但深度未插入”near-miss |
+| PEG-NM-02 | PegInsertion | peg 对齐孔但没插进去 | 使用官方失败 seed=1，summary 显示 peg_head_pos_at_hole x 约 -0.100m，yz 误差小 | false | 第二个插入深度 near-miss |
+| PEG-NM-03 | PegInsertion | 已插入中但未释放稳定 | 截断成功轨迹到 insert 阶段，末帧未到 release/stable | false | VLM 是否把“正在插入”误判为 done |
+
+
+二、为什么这批样本适合当前研究
+
+1. StackCube near-miss 测的是支撑/释放/静止。
+   RGB 上看 cube 可能已经靠近目标，但真正完成需要 cubeA 在 cubeB 上且静止。
+
+2. StackPyramid near-miss 测的是多物体空间关系。
+   这个任务本来就暴露了单一 object-goal progress 的问题，适合检验阶段化和物理一致性。
+
+3. PegInsertion near-miss 最关键。
+   官方失败 seed=0/1 的 yz 对齐误差很小，但 x 方向插入深度差约 10cm。
+   这正好对应“画面看起来接近孔，但物理上没有插进去”的深度/接触验证场景。
+
+
+三、预期对三种 MiMo 复现方法的压力
+
+| 方法 | 可能暴露的问题 |
+|---|---|
+| MiMo-RoboCLIP-style | 可能因为视觉接近最终成功状态，对 near-miss 给过高 progress |
+| MiMo-GVL-style | 可能能判到正确阶段，但不一定能判断该阶段是否物理完成 |
+| MiMo-TOPReward-style | 可能出现两种极端：过早 done，或严格到全部 0 |
+
+
+四、生成方式建议
+
+第一优先级：
+1. 保存已有官方失败 seed 视频：
+   - StackPyramid seed=0, seed=1
+   - PegInsertionSide seed=0, seed=1
+
+第二优先级：
+2. 轨迹截断 near-miss：
+   - StackCube 截断到 place/release 前
+   - StackPyramid 截断到 top cube 放置前/放置中
+   - PegInsertion 截断到 align/insert 但未 release
+
+第三优先级：
+3. 手动状态扰动：
+   - StackCube cubeA 横向偏离 cubeB top-center
+   - PegInsertion peg 在图像上对齐但沿插入轴少插 5-10cm
+
+
+五、确认后我会做的输出
+
+输出目录建议：
+near_miss_samples/outputs/
+
+每个样本输出：
+1. mp4 视频
+2. json 元数据
+3. failure_manifest.csv
+
+failure_manifest.csv 字段：
+sample_id
+task_id
+env_id
+source_type
+seed
+video_path
+expected_success
+near_miss_type
+target_failure_mode
+notes
+
+
+六、需要用户确认
+
+请确认第一批是否按上面 9 个样本生成。
+如果想更省时间，可以先生成 6 个：
+SC-NM-01, SC-NM-02,
+SP-NM-01, SP-FAIL-01,
+PEG-NM-01, PEG-NM-03。

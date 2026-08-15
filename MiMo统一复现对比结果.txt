@@ -1,0 +1,100 @@
+MiMo 统一复现对比结果
+更新时间：2026-05-22
+
+一、统一设置
+
+平台：
+同一批 ManiSkill 官方 motion-planning 成功视频：
+1. StackCube-v1
+2. StackPyramid-v1
+3. PegInsertionSide-v1
+
+模型：
+mimo-v2.5
+
+采样：
+每个任务 24 个采样帧。
+
+评价：
+当前仍然先和 time-normalized progress proxy 比较。
+这不是最终环境真值 stage/progress 准确率。
+
+本轮比较对象：
+1. MiMo-RoboCLIP-style
+2. MiMo-GVL-style
+3. MiMo-TOPReward-style
+
+
+二、方法级汇总表
+
+| 方法 | StackCube Spearman | StackPyramid Spearman | PegInsertion Spearman | 平均 Spearman | 平均 MAE | 终点均值 | 主要现象 |
+|---|---:|---:|---:|---:|---:|---:|---|
+| MiMo-RoboCLIP-style | 1.000 | 1.000 | 1.000 | 1.000 | 0.110 | 1.000 | 三任务排序最好，终点都到 1 |
+| MiMo-GVL-style | 0.999 | 0.996 | 0.999 | 0.998 | 0.175 | 1.000 | 阶段判断稳定，但分数更阶梯化 |
+| MiMo-TOPReward-style | 0.000 | 0.000 | 0.935 | 0.312 | 0.400 | 0.333 | StackCube/StackPyramid 分数塌缩为 0，PegInsertion 很早判 done |
+
+注意：
+MiMo-TOPReward-style 的 StackCube/StackPyramid 输出全 0，因此旧 pairwise 指标会因为“后帧 >= 前帧”而虚高。
+这类常数输出不应视为真的排序成功，应视为 score collapse。
+
+
+三、任务级详细表
+
+| 方法 | 任务 | Spearman | Pairwise | MAE | Start | End | Delta | Final / Done 判断 |
+|---|---|---:|---:|---:|---:|---:|---:|---|
+| MiMo-RoboCLIP-style | StackCube | 1.000 | 1.000 | 0.091 | 0.000 | 1.000 | +1.000 | release stable |
+| MiMo-RoboCLIP-style | StackPyramid | 1.000 | 1.000 | 0.091 | 0.000 | 1.000 | +1.000 | release stable |
+| MiMo-RoboCLIP-style | PegInsertion | 1.000 | 1.000 | 0.148 | 0.000 | 1.000 | +1.000 | release inserted peg stable |
+| MiMo-GVL-style | StackCube | 0.999 | 1.000 | 0.200 | 0.000 | 1.000 | +1.000 | release stable |
+| MiMo-GVL-style | StackPyramid | 0.996 | 1.000 | 0.174 | 0.000 | 1.000 | +1.000 | release stable |
+| MiMo-GVL-style | PegInsertion | 0.999 | 1.000 | 0.150 | 0.000 | 1.000 | +1.000 | release inserted peg stable |
+| MiMo-TOPReward-style | StackCube | 0.000 | 1.000* | 0.500 | 0.000 | 0.000 | +0.000 | done_end=0.000，分数塌缩 |
+| MiMo-TOPReward-style | StackPyramid | 0.000 | 1.000* | 0.500 | 0.000 | 0.000 | +0.000 | done_end=0.000，分数塌缩 |
+| MiMo-TOPReward-style | PegInsertion | 0.935 | 1.000 | 0.201 | 0.000 | 1.000 | +1.000 | done_end=1.000，但过早判 done |
+
+* 表示 pairwise 被常数分数虚高，不应解读为有效排序。
+
+
+四、怎么看这张表
+
+1. MiMo-RoboCLIP-style 当前最稳。
+它用“接近成功视觉状态 + 接近目标语义”来打分。
+三任务 Spearman 都接近 1，MAE 也是三者里最低。
+这说明在统一平台下，MiMo 作为强 VLM 时，RoboCLIP-style 的视觉/语义接近度提示最容易得到平滑进度。
+
+2. MiMo-GVL-style 也很强，但分数更粗。
+它按阶段文本判断 progress。
+排序几乎正确，但 MAE 比 MiMo-RoboCLIP-style 高，说明它更像阶段阶梯，而不是细粒度连续 reward。
+这适合做 stage proposal，但不一定适合直接当 dense progress reward。
+
+3. MiMo-TOPReward-style 暴露最大风险。
+它直接问“prefix 是否完成 / done probability”。
+StackCube 和 StackPyramid 被 MiMo 判成未完成，所有 prefix 分数都是 0。
+PegInsertion 则很早就到 1，说明它可能过早把“看起来插入”当成完成。
+所以 TOPReward-style 在这个平台上更像 sparse/terminal 判断，不适合作为稳定连续过程 reward。
+
+
+五、当前结论
+
+在统一 ManiSkill 三任务平台、统一使用 mimo-v2.5 的条件下：
+
+1. MiMo-RoboCLIP-style > MiMo-GVL-style > MiMo-TOPReward-style。
+2. RoboCLIP-style 更适合生成连续 progress-like score。
+3. GVL-style 更适合生成阶段判断或 stage proposal。
+4. TOPReward-style done/progress 提示在当前任务上不稳定，容易出现全 0 或过早 done。
+5. 这进一步说明：如果后续要做你的方法，比较合理的结构是：
+   MiMo/RoboCLIP 或 MiMo/GVL 给语义进度，
+   深度/接触/几何信号负责验证物理一致性，
+   尤其处理 PegInsertion 这种视觉上像完成但物理上可能未完成的情况。
+
+
+六、输出位置
+
+MiMo-RoboCLIP-style：
+RoboCLIP-style/outputs/three_task_mimo_roboclip/
+
+MiMo-GVL-style：
+GVL-style VLM/outputs/three_task_mimo_gvl/
+
+MiMo-TOPReward-style：
+TOPReward-style/outputs/three_task_mimo_topreward/
